@@ -1,0 +1,354 @@
+.account-page {
+  min-height: 100vh;
+  background: #f6f8fb;
+  color: #172033;
+}
+
+
+/* ================= HEADER ================= */
+
+.account-header {
+  height: 72px;
+  padding: 0 7%;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: #ffffff;
+  border-bottom: 1px solid #e5e9ef;
+}
+
+.account-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.account-logo span {
+  font-size: 23px;
+}
+
+.back-button {
+  padding: 9px 15px;
+
+  border: 1px solid #dfe4eb;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #475467;
+
+  font-size: 13px;
+
+  cursor: pointer;
+}
+
+.back-button:hover {
+  border-color: #b9cdf7;
+  color: #2563eb;
+}
+
+
+/* ================= MAIN ================= */
+
+.account-content {
+  width: 82%;
+  max-width: 1050px;
+
+  margin: auto;
+
+  padding: 45px 0 70px;
+}
+
+
+/* ================= HEADING ================= */
+
+.account-heading {
+  margin-bottom: 28px;
+}
+
+.account-heading p {
+  margin-bottom: 7px;
+
+  color: #2563eb;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  letter-spacing: 1.4px;
+}
+
+.account-heading h1 {
+  margin: 0 0 7px;
+
+  font-size: 30px;
+  font-weight: 650;
+}
+
+.account-heading span {
+  color: #667085;
+
+  font-size: 14px;
+}
+
+
+/* ================= ACCOUNT OVERVIEW ================= */
+
+.account-overview {
+  padding: 28px 30px;
+
+  border-radius: 12px;
+
+  background: #172033;
+  color: #ffffff;
+
+  box-shadow: 0 10px 25px rgba(23, 32, 51, 0.1);
+}
+
+.account-overview-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.account-type {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.account-symbol {
+  width: 45px;
+  height: 45px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9px;
+
+  background: #29364e;
+
+  font-size: 20px;
+}
+
+.account-type p {
+  margin-bottom: 4px;
+
+  color: #8998af;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  letter-spacing: 1px;
+}
+
+.account-type h2 {
+  margin: 0;
+
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.account-active {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 7px 11px;
+
+  border: 1px solid #35455f;
+  border-radius: 20px;
+
+  color: #d4dce8;
+
+  font-size: 11px;
+}
+
+.account-active span {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #4ade80;
+}
+
+.account-number-box {
+  margin-top: 27px;
+  padding-top: 20px;
+
+  border-top: 1px solid #354055;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.account-number-box span {
+  color: #8998af;
+
+  font-size: 12px;
+}
+
+.account-number-box strong {
+  font-size: 15px;
+  letter-spacing: 1.5px;
+}
+
+
+/* ================= DETAILS ================= */
+
+.details-card {
+  margin-top: 22px;
+  padding: 25px 28px;
+
+  border: 1px solid #e3e8ef;
+  border-radius: 11px;
+
+  background: #ffffff;
+}
+
+.card-heading {
+  margin-bottom: 20px;
+}
+
+.card-heading h2 {
+  margin: 0 0 5px;
+
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.card-heading p {
+  color: #667085;
+
+  font-size: 12px;
+}
+
+.details-grid {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  border-top: 1px solid #edf0f4;
+}
+
+.detail-item {
+  min-height: 68px;
+
+  padding: 15px 10px 15px 0;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  border-bottom: 1px solid #edf0f4;
+}
+
+.detail-item:nth-child(odd) {
+  margin-right: 25px;
+}
+
+.detail-item span {
+  margin-bottom: 6px;
+
+  color: #98a2b3;
+
+  font-size: 11px;
+}
+
+.detail-item strong {
+  color: #344054;
+
+  font-size: 13px;
+}
+
+.status-text {
+  color: #16834b !important;
+}
+
+
+/* ================= KYC ================= */
+
+.kyc-card {
+  margin-top: 22px;
+  padding: 20px 24px;
+
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  border: 1px solid #dcefe4;
+  border-radius: 11px;
+
+  background: #f7fcf9;
+}
+
+.kyc-icon {
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #e2f5e9;
+  color: #16834b;
+
+  font-weight: 700;
+}
+
+.kyc-card h3 {
+  margin-bottom: 4px;
+
+  font-size: 14px;
+}
+
+.kyc-card p {
+  color: #667085;
+
+  font-size: 12px;
+}
+
+.verified {
+  margin-left: auto;
+
+  color: #16834b;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 700px) {
+
+  .account-header {
+    padding: 0 5%;
+  }
+
+  .account-content {
+    width: 90%;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-item:nth-child(odd) {
+    margin-right: 0;
+  }
+
+  .account-number-box {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

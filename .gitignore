@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+target/
+*.class
+
+.vscode/
+.idea/
+*.iml
+
+.env
+.env.*
+application-local.properties
+
+.DS_Store
+Thumbs.db

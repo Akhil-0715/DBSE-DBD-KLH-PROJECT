@@ -1,0 +1,486 @@
+.fd-page {
+  min-height: 100vh;
+  background: #f6f8fb;
+  color: #172033;
+}
+
+
+/* ================= HEADER ================= */
+
+.fd-header {
+  height: 72px;
+  padding: 0 7%;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: #ffffff;
+  border-bottom: 1px solid #e5e9ef;
+}
+
+.fd-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.fd-logo span {
+  font-size: 23px;
+}
+
+.fd-back {
+  padding: 9px 15px;
+
+  border: 1px solid #dfe4eb;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #475467;
+
+  font-size: 13px;
+
+  cursor: pointer;
+}
+
+.fd-back:hover {
+  color: #2563eb;
+  border-color: #b9cdf7;
+}
+
+
+/* ================= MAIN ================= */
+
+.fd-main {
+  width: 82%;
+  max-width: 1100px;
+
+  margin: auto;
+
+  padding: 45px 0 70px;
+}
+
+
+/* ================= HEADING ================= */
+
+.fd-heading {
+  margin-bottom: 28px;
+}
+
+.fd-heading p {
+  margin-bottom: 7px;
+
+  color: #2563eb;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  letter-spacing: 1.4px;
+}
+
+.fd-heading h1 {
+  margin: 0 0 7px;
+
+  font-size: 30px;
+}
+
+.fd-heading span {
+  color: #667085;
+
+  font-size: 14px;
+}
+
+
+/* ================= LAYOUT ================= */
+
+.fd-layout {
+  display: grid;
+
+  grid-template-columns: 1.4fr 0.8fr;
+
+  gap: 22px;
+
+  align-items: start;
+}
+
+
+/* ================= FORM CARD ================= */
+
+.fd-card {
+  padding: 28px;
+
+  border: 1px solid #e3e8ef;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+.fd-card-title {
+  margin-bottom: 25px;
+}
+
+.fd-card-title h2 {
+  margin-bottom: 5px;
+
+  font-size: 18px;
+}
+
+.fd-card-title p {
+  color: #667085;
+
+  font-size: 12px;
+}
+
+
+/* ================= FORM ================= */
+
+.fd-group {
+  margin-bottom: 21px;
+}
+
+.fd-group > label {
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: #344054;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+/* ACCOUNT */
+
+.fd-account {
+  min-height: 64px;
+
+  padding: 12px 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border: 1px solid #dfe4eb;
+  border-radius: 8px;
+
+  background: #f9fafc;
+}
+
+.fd-account div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.fd-account strong {
+  font-size: 13px;
+}
+
+.fd-account span {
+  color: #8a94a6;
+
+  font-size: 11px;
+}
+
+.fd-active {
+  padding: 5px 8px;
+
+  border-radius: 12px;
+
+  background: #eaf8f0;
+
+  color: #16834b !important;
+
+  font-size: 10px !important;
+}
+
+
+/* AMOUNT */
+
+.fd-amount {
+  position: relative;
+}
+
+.fd-amount > span {
+  position: absolute;
+
+  left: 13px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  color: #667085;
+
+  font-size: 14px;
+}
+
+.fd-amount input {
+  width: 100%;
+  height: 45px;
+
+  padding: 0 13px 0 30px;
+
+  border: 1px solid #d9dee7;
+  border-radius: 7px;
+
+  outline: none;
+
+  font-size: 13px;
+}
+
+.fd-amount input:focus {
+  border-color: #2563eb;
+
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.fd-group > small {
+  display: block;
+
+  margin-top: 6px;
+
+  color: #98a2b3;
+
+  font-size: 10px;
+}
+
+
+/* TENURE */
+
+.tenure-options {
+  display: grid;
+
+  grid-template-columns: repeat(4, 1fr);
+
+  gap: 9px;
+}
+
+.tenure-option {
+  min-height: 68px;
+
+  padding: 10px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  gap: 4px;
+
+  border: 1px solid #dfe4eb;
+  border-radius: 7px;
+
+  cursor: pointer;
+}
+
+.tenure-option input {
+  display: none;
+}
+
+.tenure-option strong {
+  font-size: 11px;
+}
+
+.tenure-option small {
+  color: #8a94a6;
+
+  font-size: 10px;
+}
+
+.tenure-option.selected {
+  border-color: #2563eb;
+
+  background: #f5f8ff;
+}
+
+.tenure-option.selected small {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+
+/* SELECT */
+
+.fd-group select {
+  width: 100%;
+  height: 45px;
+
+  padding: 0 12px;
+
+  border: 1px solid #d9dee7;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #344054;
+
+  font-size: 12px;
+
+  outline: none;
+}
+
+
+/* BUTTON */
+
+.fd-submit {
+  width: 100%;
+  height: 47px;
+
+  margin-top: 4px;
+
+  border: none;
+  border-radius: 7px;
+
+  background: #2563eb;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.fd-submit:hover {
+  background: #1d4ed8;
+}
+
+
+/* ================= SUMMARY ================= */
+
+.fd-side {
+  display: flex;
+  flex-direction: column;
+
+  gap: 15px;
+}
+
+.fd-summary {
+  padding: 25px;
+
+  border-radius: 12px;
+
+  background: #172033;
+  color: #ffffff;
+}
+
+.fd-summary > p {
+  margin-bottom: 12px;
+
+  color: #8998af;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  letter-spacing: 1px;
+}
+
+.fd-summary h2 {
+  margin-bottom: 5px;
+
+  font-size: 29px;
+  font-weight: 600;
+}
+
+.fd-summary > span {
+  color: #aebbd0;
+
+  font-size: 11px;
+}
+
+.summary-line {
+  min-height: 48px;
+
+  margin-top: 13px;
+  padding-top: 13px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-top: 1px solid #354055;
+}
+
+.summary-line span {
+  color: #8998af;
+
+  font-size: 11px;
+}
+
+.summary-line strong {
+  font-size: 12px;
+}
+
+
+/* ================= NOTE ================= */
+
+.fd-note {
+  padding: 17px;
+
+  display: flex;
+  gap: 11px;
+
+  border: 1px solid #dfe7f4;
+  border-radius: 10px;
+
+  background: #ffffff;
+}
+
+.fd-note > span {
+  color: #2563eb;
+
+  font-size: 17px;
+}
+
+.fd-note strong {
+  display: block;
+
+  margin-bottom: 5px;
+
+  font-size: 12px;
+}
+
+.fd-note p {
+  color: #667085;
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 850px) {
+
+  .fd-main {
+    width: 90%;
+  }
+
+  .fd-layout {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 600px) {
+
+  .fd-header {
+    padding: 0 5%;
+  }
+
+  .fd-main {
+    width: 92%;
+  }
+
+  .fd-card {
+    padding: 21px;
+  }
+
+  .tenure-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+}
