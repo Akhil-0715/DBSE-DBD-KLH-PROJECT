@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./AdminDashboard.css";
 
@@ -8,98 +8,297 @@ function AdminDashboard() {
   const [activeSection, setActiveSection] = useState("overview");
   const [reviewedAlerts, setReviewedAlerts] = useState([]);
 
-  const customers = [
-    {
-      id: "CU1048",
-      name: "Akhil",
-      account: "•••• 4582",
-      kyc: "Verified",
-      status: "Active",
-    },
-    {
-      id: "CU1049",
-      name: "Rahul",
-      account: "•••• 6214",
-      kyc: "Verified",
-      status: "Active",
-    },
-    {
-      id: "CU1050",
-      name: "Priya",
-      account: "•••• 7391",
-      kyc: "Pending",
-      status: "Active",
-    },
-  ];
+  const [customers, setCustomers] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [fraudAlerts, setFraudAlerts] = useState([]);
 
-  const transactions = [
-    {
-      id: "TXN7842",
-      customer: "Akhil",
-      type: "Credit",
-      amount: "₹35,000",
-      status: "Completed",
-    },
-    {
-      id: "TXN7841",
-      customer: "Rahul",
-      type: "Debit",
-      amount: "₹2,450",
-      status: "Completed",
-    },
-    {
-      id: "TXN7839",
-      customer: "Priya",
-      type: "Debit",
-      amount: "₹1,200",
-      status: "Completed",
-    },
-    {
-      id: "TXN7835",
-      customer: "Akhil",
-      type: "Debit",
-      amount: "₹25,000",
-      status: "Review",
-    },
-  ];
+  const [dashboardStats, setDashboardStats] = useState({
+    totalCustomers: 0,
+    totalAccounts: 0,
+    totalTransactions: 0,
+    totalFraudAlerts: 0,
+  });
 
-  const fraudAlerts = [
-    {
-      id: "ALR001",
-      transaction: "TXN7835",
-      customer: "Akhil",
-      reason: "Unusual transaction amount",
-      amount: "₹25,000",
-      time: "42 minutes ago",
-    },
-    {
-      id: "ALR002",
-      transaction: "TXN7829",
-      customer: "Rahul",
-      reason: "Multiple transfers in short time",
-      amount: "₹18,000",
-      time: "1 hour ago",
-    },
-    {
-      id: "ALR003",
-      transaction: "TXN7818",
-      customer: "Priya",
-      reason: "Unusual transaction pattern",
-      amount: "₹12,500",
-      time: "2 hours ago",
-    },
-  ];
+  const [admin, setAdmin] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // ================= LOAD ADMIN DATA =================
+
+  useEffect(() => {
+    const storedAdmin = localStorage.getItem("admin");
+
+    if (!storedAdmin) {
+      navigate("/admin-login");
+      return;
+    }
+
+    try {
+      setAdmin(JSON.parse(storedAdmin));
+    } catch (error) {
+      console.error("Invalid admin session:", error);
+      localStorage.removeItem("admin");
+      navigate("/admin-login");
+      return;
+    }
+
+    loadDashboardData();
+  }, [navigate]);
+
+  const loadDashboardData = async () => {
+    setLoading(true);
+
+    try {
+      const [
+        dashboardResponse,
+        customersResponse,
+        transactionsResponse,
+        fraudResponse,
+      ] = await Promise.all([
+        fetch("http://localhost:8080/api/admin/dashboard"),
+        fetch("http://localhost:8080/api/customers"),
+        fetch("http://localhost:8080/api/transactions"),
+        fetch("http://localhost:8080/api/fraud-alerts"),
+      ]);
+
+      if (
+        !dashboardResponse.ok ||
+        !customersResponse.ok ||
+        !transactionsResponse.ok ||
+        !fraudResponse.ok
+      ) {
+        throw new Error("Unable to load admin data");
+      }
+
+      const dashboardData = await dashboardResponse.json();
+      const customerData = await customersResponse.json();
+      const transactionData = await transactionsResponse.json();
+      const fraudData = await fraudResponse.json();
+
+      setDashboardStats(dashboardData);
+      setCustomers(customerData);
+      setTransactions(transactionData);
+      setFraudAlerts(fraudData);
+    } catch (error) {
+      console.error("Admin dashboard loading error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ================= SECTION =================
 
   const toggleSection = (section) => {
     setActiveSection(section);
   };
 
-  const markReviewed = (alertId) => {
-    setReviewedAlerts((previous) => [
-      ...previous,
-      alertId,
-    ]);
+  // ================= KYC APPROVAL =================
+
+  const approveKyc = async (customerId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8080/api/customers/${customerId}/kyc`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            kycStatus: "Verified",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to approve KYC");
+      }
+
+      const updatedCustomer = await response.json();
+
+      setCustomers((previousCustomers) =>
+        previousCustomers.map((customer) =>
+          customer.id === customerId
+            ? {
+                ...customer,
+                ...updatedCustomer,
+              }
+            : customer
+        )
+      );
+
+      alert("KYC approved successfully");
+    } catch (error) {
+      console.error("KYC approval error:", error);
+      alert("Failed to approve KYC");
+    }
   };
+
+  // ================= FRAUD REVIEW =================
+
+  const markReviewed = (alertId) => {
+    setReviewedAlerts((previous) => {
+      if (previous.includes(alertId)) {
+        return previous;
+      }
+
+      return [...previous, alertId];
+    });
+  };
+
+  // ================= LOGOUT =================
+
+  const handleLogout = () => {
+    localStorage.removeItem("admin");
+    navigate("/");
+  };
+
+  // ================= HELPERS =================
+
+  const formatCurrency = (amount) => {
+    if (amount === null || amount === undefined || amount === "") {
+      return "₹ —";
+    }
+
+    const numericAmount = Number(amount);
+
+    if (Number.isNaN(numericAmount)) {
+      return "₹ —";
+    }
+
+    return `₹ ${numericAmount.toLocaleString("en-IN", {
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const formatAccountNumber = (accountNumber) => {
+    if (!accountNumber) {
+      return "Account number unavailable";
+    }
+
+    return `•••• ${accountNumber.slice(-4)}`;
+  };
+
+  const getCustomerName = (transaction) => {
+    if (transaction.senderAccount?.customer?.fullName) {
+      return transaction.senderAccount.customer.fullName;
+    }
+
+    if (transaction.receiverAccount?.customer?.fullName) {
+      return transaction.receiverAccount.customer.fullName;
+    }
+
+    return "Customer unavailable";
+  };
+
+  const getTransactionType = (transaction) => {
+    if (transaction.transactionType === "FUND_TRANSFER") {
+      return "Transfer";
+    }
+
+    return transaction.transactionType || "Transaction type unavailable";
+  };
+
+  const getTransactionStatus = (transaction) => {
+    return transaction.status || "Status unavailable";
+  };
+
+  const getTransactionId = (transaction) => {
+    if (transaction.transactionReference) {
+      return transaction.transactionReference;
+    }
+
+    if (transaction.id !== null && transaction.id !== undefined) {
+      return `TXN-${transaction.id}`;
+    }
+
+    return "Transaction reference unavailable";
+  };
+
+  const getAlertCustomer = (alert) => {
+    if (alert.transaction?.senderAccount?.customer?.fullName) {
+      return alert.transaction.senderAccount.customer.fullName;
+    }
+
+    if (alert.transaction?.receiverAccount?.customer?.fullName) {
+      return alert.transaction.receiverAccount.customer.fullName;
+    }
+
+    return "Customer unavailable";
+  };
+
+  const getAlertTransaction = (alert) => {
+    if (alert.transaction?.transactionReference) {
+      return alert.transaction.transactionReference;
+    }
+
+    return "Transaction reference unavailable";
+  };
+
+  const getAlertAmount = (alert) => {
+    return alert.transaction?.amount ?? null;
+  };
+
+  const getAlertTime = (alert) => {
+    if (!alert.alertDate) {
+      return "Alert time unavailable";
+    }
+
+    return new Date(alert.alertDate).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getPendingAlertsCount = () => {
+    return Math.max(
+      dashboardStats.totalFraudAlerts - reviewedAlerts.length,
+      0
+    );
+  };
+
+  const getAdminName = () => {
+    if (admin?.fullName) {
+      return admin.fullName;
+    }
+
+    if (admin?.name) {
+      return admin.name;
+    }
+
+    if (admin?.email) {
+      return admin.email;
+    }
+
+    return "Administrator";
+  };
+
+  const getAdminInitial = () => {
+    const name = getAdminName();
+
+    return name
+      ? name.charAt(0).toUpperCase()
+      : "A";
+  };
+
+  // ================= LOADING =================
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "16px",
+          color: "#475467",
+        }}
+      >
+        Loading admin dashboard...
+      </div>
+    );
+  }
 
   return (
     <div className="admin-dashboard">
@@ -120,16 +319,16 @@ function AdminDashboard() {
         <div className="admin-user">
 
           <div className="admin-avatar">
-            A
+            {getAdminInitial()}
           </div>
 
           <div>
-            <strong>Administrator</strong>
+            <strong>{getAdminName()}</strong>
             <small>System Admin</small>
           </div>
 
           <button
-            onClick={() => navigate("/")}
+            onClick={handleLogout}
             className="admin-logout"
           >
             Logout
@@ -161,7 +360,11 @@ function AdminDashboard() {
           </div>
 
           <div className="admin-date">
-            11 September 2026
+            {new Date().toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
           </div>
 
         </div>
@@ -182,7 +385,9 @@ function AdminDashboard() {
 
             <div>
               <small>Total Customers</small>
-              <strong>1,248</strong>
+              <strong>
+                {dashboardStats.totalCustomers}
+              </strong>
             </div>
 
           </button>
@@ -199,7 +404,9 @@ function AdminDashboard() {
 
             <div>
               <small>Active Accounts</small>
-              <strong>1,156</strong>
+              <strong>
+                {dashboardStats.totalAccounts}
+              </strong>
             </div>
 
           </button>
@@ -215,8 +422,10 @@ function AdminDashboard() {
             </span>
 
             <div>
-              <small>Today's Transactions</small>
-              <strong>384</strong>
+              <small>Total Transactions</small>
+              <strong>
+                {dashboardStats.totalTransactions}
+              </strong>
             </div>
 
           </button>
@@ -233,7 +442,9 @@ function AdminDashboard() {
 
             <div>
               <small>Fraud Alerts</small>
-              <strong>{3 - reviewedAlerts.length}</strong>
+              <strong>
+                {getPendingAlertsCount()}
+              </strong>
             </div>
 
           </button>
@@ -322,11 +533,11 @@ function AdminDashboard() {
                 <div>
 
                   <strong>
-                    New customer registration
+                    Customer records loaded
                   </strong>
 
                   <small>
-                    Customer ID CU1048 · 10 minutes ago
+                    {dashboardStats.totalCustomers} customers in the system
                   </small>
 
                 </div>
@@ -345,11 +556,11 @@ function AdminDashboard() {
                 <div>
 
                   <strong>
-                    Fund transfer processed
+                    Transaction monitoring active
                   </strong>
 
                   <small>
-                    Transaction TXN7842 · 25 minutes ago
+                    {dashboardStats.totalTransactions} transactions recorded
                   </small>
 
                 </div>
@@ -368,17 +579,19 @@ function AdminDashboard() {
                 <div>
 
                   <strong>
-                    Unusual transaction detected
+                    Fraud monitoring
                   </strong>
 
                   <small>
-                    Transaction TXN7835 · 42 minutes ago
+                    {getPendingAlertsCount()} alerts currently require review
                   </small>
 
                 </div>
 
                 <span>
-                  Review Required
+                  {getPendingAlertsCount() > 0
+                    ? "Review Required"
+                    : "No Pending Alerts"}
                 </span>
 
               </div>
@@ -428,50 +641,77 @@ function AdminDashboard() {
               </div>
 
 
-              {customers.map((customer) => (
+              {customers.map((customer) => {
 
-                <div
-                  className="admin-table-row"
-                  key={customer.id}
-                >
+                const customerAccount =
+                  customer.accounts?.[0] || null;
 
-                  <div className="admin-customer">
+                return (
 
-                    <div className="customer-avatar">
-                      {customer.name.charAt(0)}
+                  <div
+                    className="admin-table-row"
+                    key={customer.id}
+                  >
+
+                    <div className="admin-customer">
+
+                      <div className="customer-avatar">
+                        {customer.fullName
+                          ?.charAt(0)
+                          ?.toUpperCase() || "C"}
+                      </div>
+
+                      <strong>
+                        {customer.fullName || "Customer name unavailable"}
+                      </strong>
+
                     </div>
 
-                    <strong>
-                      {customer.name}
-                    </strong>
+                    <span>
+                      {customer.id ?? "Customer ID unavailable"}
+                    </span>
+
+                    <span>
+                      {formatAccountNumber(
+                        customerAccount?.accountNumber
+                      )}
+                    </span>
+
+                    <span
+                      className={
+                        customer.kycStatus === "Verified"
+                          ? "verified-status"
+                          : "pending-status"
+                      }
+                    >
+                      {customer.kycStatus || "KYC status unavailable"}
+                    </span>
+
+                    <span className="active-status">
+
+                      {customerAccount?.status ? (
+                        customerAccount.status
+                      ) : (
+                        customer.kycStatus === "Verified" ? (
+                          "Account status unavailable"
+                        ) : (
+                          <button
+                            className="view-page-button"
+                            onClick={() =>
+                              approveKyc(customer.id)
+                            }
+                          >
+                            Approve KYC
+                          </button>
+                        )
+                      )}
+
+                    </span>
 
                   </div>
 
-                  <span>
-                    {customer.id}
-                  </span>
-
-                  <span>
-                    {customer.account}
-                  </span>
-
-                  <span
-                    className={
-                      customer.kyc === "Verified"
-                        ? "verified-status"
-                        : "pending-status"
-                    }
-                  >
-                    {customer.kyc}
-                  </span>
-
-                  <span className="active-status">
-                    {customer.status}
-                  </span>
-
-                </div>
-
-              ))}
+                );
+              })}
 
             </div>
 
@@ -531,37 +771,37 @@ function AdminDashboard() {
                   <div>
 
                     <strong>
-                      {transaction.id}
+                      {getTransactionId(transaction)}
                     </strong>
 
                   </div>
 
                   <span>
-                    {transaction.customer}
+                    {getCustomerName(transaction)}
                   </span>
 
                   <span
                     className={
-                      transaction.type === "Credit"
+                      transaction.transactionType === "FUND_TRANSFER"
                         ? "credit-admin"
                         : "debit-admin"
                     }
                   >
-                    {transaction.type}
+                    {getTransactionType(transaction)}
                   </span>
 
                   <strong>
-                    {transaction.amount}
+                    {formatCurrency(transaction.amount)}
                   </strong>
 
                   <span
                     className={
-                      transaction.status === "Review"
-                        ? "review-status"
-                        : "completed-status"
+                      getTransactionStatus(transaction) === "SUCCESS"
+                        ? "completed-status"
+                        : "review-status"
                     }
                   >
-                    {transaction.status}
+                    {getTransactionStatus(transaction)}
                   </span>
 
                 </div>
@@ -594,7 +834,7 @@ function AdminDashboard() {
               </div>
 
               <span className="alert-count">
-                {3 - reviewedAlerts.length} Pending
+                {getPendingAlertsCount()} Pending
               </span>
 
             </div>
@@ -602,74 +842,94 @@ function AdminDashboard() {
 
             <div className="fraud-list">
 
-              {fraudAlerts.map((alert) => {
+              {fraudAlerts.length === 0 ? (
 
-                const isReviewed =
-                  reviewedAlerts.includes(alert.id);
+                <div
+                  style={{
+                    padding: "30px",
+                    textAlign: "center",
+                    color: "#667085",
+                  }}
+                >
+                  No fraud alerts found.
+                </div>
 
-                return (
+              ) : (
 
-                  <div
-                    className={
-                      isReviewed
-                        ? "fraud-card reviewed"
-                        : "fraud-card"
-                    }
-                    key={alert.id}
-                  >
+                fraudAlerts.map((alert) => {
 
-                    <div className="fraud-icon">
-                      ⚠️
-                    </div>
+                  const isReviewed =
+                    reviewedAlerts.includes(alert.id);
 
+                  return (
 
-                    <div className="fraud-details">
+                    <div
+                      className={
+                        isReviewed
+                          ? "fraud-card reviewed"
+                          : "fraud-card"
+                      }
+                      key={alert.id}
+                    >
 
-                      <strong>
-                        {alert.reason}
-                      </strong>
-
-                      <span>
-                        {alert.customer} · {alert.transaction}
-                      </span>
-
-                      <small>
-                        {alert.time}
-                      </small>
-
-                    </div>
+                      <div className="fraud-icon">
+                        ⚠️
+                      </div>
 
 
-                    <div className="fraud-amount">
+                      <div className="fraud-details">
 
-                      <strong>
-                        {alert.amount}
-                      </strong>
+                        <strong>
+                          {alert.description ||
+                            alert.alertType ||
+                            "Fraud alert information unavailable"}
+                        </strong>
 
-                      {isReviewed ? (
-
-                        <span className="reviewed-text">
-                          ✓ Reviewed
+                        <span>
+                          {getAlertCustomer(alert)} ·{" "}
+                          {getAlertTransaction(alert)}
                         </span>
 
-                      ) : (
+                        <small>
+                          {getAlertTime(alert)}
+                        </small>
 
-                        <button
-                          onClick={() =>
-                            markReviewed(alert.id)
-                          }
-                        >
-                          Mark Reviewed
-                        </button>
+                      </div>
 
-                      )}
+
+                      <div className="fraud-amount">
+
+                        <strong>
+                          {formatCurrency(
+                            getAlertAmount(alert)
+                          )}
+                        </strong>
+
+                        {isReviewed ? (
+
+                          <span className="reviewed-text">
+                            ✓ Reviewed
+                          </span>
+
+                        ) : (
+
+                          <button
+                            onClick={() =>
+                              markReviewed(alert.id)
+                            }
+                          >
+                            Mark Reviewed
+                          </button>
+
+                        )}
+
+                      </div>
 
                     </div>
 
-                  </div>
-
-                );
-              })}
+                  );
+                })
+              )}
 
             </div>
 

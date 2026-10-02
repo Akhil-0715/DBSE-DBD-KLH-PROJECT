@@ -1,10 +1,144 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Dashboard.css";
 
 function Dashboard() {
   const navigate = useNavigate();
+
   const [showBalance, setShowBalance] = useState(false);
+  const [customer, setCustomer] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+
+  useEffect(() => {
+    const storedCustomer = localStorage.getItem("customer");
+
+    if (!storedCustomer) {
+      navigate("/login");
+      return;
+    }
+
+    const customerData = JSON.parse(storedCustomer);
+    setCustomer(customerData);
+
+    loadAccount(customerData.customerId);
+  }, [navigate]);
+
+  const loadAccount = async (customerId) => {
+    try {
+      const response = await fetch(
+        "http://localhost:8080/api/accounts"
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load accounts");
+      }
+
+      const accounts = await response.json();
+
+      const customerAccount = accounts.find(
+        (item) => item.customer?.id === customerId
+      );
+
+      if (customerAccount) {
+        setAccount(customerAccount);
+        loadTransactions(customerAccount.id);
+      }
+    } catch (error) {
+      console.error("Account loading error:", error);
+    }
+  };
+
+  const loadTransactions = async (accountId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8080/api/transactions/account/${accountId}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load transactions");
+      }
+
+      const data = await response.json();
+
+      setTransactions(data);
+    } catch (error) {
+      console.error("Transaction loading error:", error);
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    if (amount === null || amount === undefined) {
+      return "₹ —";
+    }
+
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatAccountNumber = (accountNumber) => {
+    if (!accountNumber) return "•••• •••• ••••";
+
+    const lastFour = accountNumber.slice(-4);
+
+    return `•••• •••• ${lastFour}`;
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "Date unavailable";
+
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const getTransactionType = (transaction) => {
+    if (
+      transaction.senderAccount &&
+      account &&
+      transaction.senderAccount.id === account.id
+    ) {
+      return "Debited";
+    }
+
+    return "Credited";
+  };
+
+  const getTransactionClass = (transaction) => {
+    return getTransactionType(transaction) === "Credited"
+      ? "credit"
+      : "debit";
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("customer");
+    navigate("/");
+  };
+
+  if (!customer) {
+    return null;
+  }
+
+  const currentHour = new Date().getHours();
+
+  const greeting =
+    currentHour < 12
+      ? "Good morning"
+      : currentHour < 18
+      ? "Good afternoon"
+      : "Good evening";
+
+  const accountType = account?.accountType
+    ? `${account.accountType} ACCOUNT`
+    : "ACCOUNT TYPE UNAVAILABLE";
+
+  const accountStatus =
+    account?.status || "Unavailable";
 
   return (
     <div className="bank-dashboard">
@@ -17,7 +151,6 @@ function Dashboard() {
           <span>🏦</span>
           OnlineBank
         </div>
-
 
         <nav className="bank-nav">
 
@@ -39,17 +172,16 @@ function Dashboard() {
 
         </nav>
 
-
         <div className="user-area">
 
           <div className="user-avatar">
-            A
+            {customer.fullName?.charAt(0)?.toUpperCase() || "U"}
           </div>
 
           <div className="user-details">
 
             <strong>
-              Akhil
+              {customer.fullName}
             </strong>
 
             <span>
@@ -60,7 +192,7 @@ function Dashboard() {
 
           <button
             className="logout"
-            onClick={() => navigate("/")}
+            onClick={handleLogout}
           >
             Logout
           </button>
@@ -74,8 +206,7 @@ function Dashboard() {
 
       <main className="bank-main">
 
-
-        {/* INTRO */}
+        {/* ================= INTRO ================= */}
 
         <div className="dashboard-intro">
 
@@ -86,7 +217,7 @@ function Dashboard() {
             </p>
 
             <h1>
-              Good morning, Akhil
+              {greeting}, {customer.fullName}
             </h1>
 
             <p>
@@ -96,7 +227,11 @@ function Dashboard() {
           </div>
 
           <span className="current-date">
-            11 September 2026
+            {new Date().toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
           </span>
 
         </div>
@@ -112,26 +247,23 @@ function Dashboard() {
 
               <span className="account-dot"></span>
 
-              SAVINGS ACCOUNT
+              {accountType}
 
             </div>
-
 
             <div className="account-number">
-              •••• •••• 4582
+              {formatAccountNumber(account?.accountNumber)}
             </div>
-
 
             <p className="balance-label">
               Available Balance
             </p>
 
-
             <div className="balance-line">
 
               <h2>
                 {showBalance
-                  ? "₹ 50,000.00"
+                  ? formatCurrency(account?.balance)
                   : "₹ ••••••"}
               </h2>
 
@@ -159,11 +291,13 @@ function Dashboard() {
 
             <strong>
               <i></i>
-              Active
+              {accountStatus}
             </strong>
 
             <small>
-              Your account is active
+              {account?.status
+                ? `Your account is ${account.status.toLowerCase()}`
+                : "Account status unavailable"}
             </small>
 
           </div>
@@ -189,7 +323,6 @@ function Dashboard() {
 
 
           <div className="actions-row">
-
 
             {/* SEND MONEY */}
 
@@ -221,7 +354,7 @@ function Dashboard() {
 
             <button
               className="bank-action"
-              onClick={() => navigate("/transfer")}
+              onClick={() => navigate("/bill-payment")}
             >
 
               <span className="action-symbol">
@@ -303,8 +436,7 @@ function Dashboard() {
 
         <div className="dashboard-bottom">
 
-
-          {/* RECENT ACTIVITY */}
+          {/* ================= RECENT ACTIVITY ================= */}
 
           <section className="activity-section">
 
@@ -322,7 +454,6 @@ function Dashboard() {
 
               </div>
 
-
               <button
                 className="text-button"
                 onClick={() =>
@@ -337,105 +468,109 @@ function Dashboard() {
 
             <div className="activity-table">
 
+              {transactions.length === 0 ? (
 
-              {/* SALARY */}
+                <div className="activity-row">
 
-              <div className="activity-row">
+                  <div className="activity-name">
 
-                <div className="activity-name">
+                    <span className="activity-icon">
+                      —
+                    </span>
 
-                  <span className="activity-icon credit">
-                    ↓
-                  </span>
+                    <div>
 
-                  <div>
+                      <strong>
+                        No recent transactions
+                      </strong>
 
-                    <strong>
-                      Salary Credit
-                    </strong>
+                      <small>
+                        Your latest activity will appear here
+                      </small>
 
-                    <small>
-                      Today · 10:30 AM
-                    </small>
-
-                  </div>
-
-                </div>
-
-                <span className="activity-status credit-text">
-                  Credited
-                </span>
-
-              </div>
-
-
-              {/* ELECTRICITY */}
-
-              <div className="activity-row">
-
-                <div className="activity-name">
-
-                  <span className="activity-icon debit">
-                    ↑
-                  </span>
-
-                  <div>
-
-                    <strong>
-                      Electricity Bill
-                    </strong>
-
-                    <small>
-                      Yesterday · 06:15 PM
-                    </small>
+                    </div>
 
                   </div>
 
                 </div>
 
-                <span className="activity-status debit-text">
-                  Debited
-                </span>
+              ) : (
 
-              </div>
+                transactions
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      new Date(b.transactionDate) -
+                      new Date(a.transactionDate)
+                  )
+                  .slice(0, 3)
+                  .map((transaction) => {
+
+                    const type =
+                      getTransactionType(transaction);
+
+                    const transactionClass =
+                      getTransactionClass(transaction);
+
+                    return (
+
+                      <div
+                        className="activity-row"
+                        key={transaction.id}
+                      >
+
+                        <div className="activity-name">
+
+                          <span
+                            className={`activity-icon ${transactionClass}`}
+                          >
+                            {type === "Credited"
+                              ? "↓"
+                              : "↑"}
+                          </span>
+
+                          <div>
+
+                            <strong>
+                              {transaction.transactionType ||
+                                "Transaction"}
+                            </strong>
+
+                            <small>
+                              {formatDate(
+                                transaction.transactionDate
+                              )}
+                            </small>
+
+                          </div>
+
+                        </div>
 
 
-              {/* ONLINE PURCHASE */}
+                        <span
+                          className={`activity-status ${
+                            type === "Credited"
+                              ? "credit-text"
+                              : "debit-text"
+                          }`}
+                        >
+                          {type}
+                        </span>
 
-              <div className="activity-row">
+                      </div>
 
-                <div className="activity-name">
+                    );
 
-                  <span className="activity-icon debit">
-                    ↑
-                  </span>
+                  })
 
-                  <div>
-
-                    <strong>
-                      Online Purchase
-                    </strong>
-
-                    <small>
-                      09 Sep · 02:20 PM
-                    </small>
-
-                  </div>
-
-                </div>
-
-                <span className="activity-status debit-text">
-                  Debited
-                </span>
-
-              </div>
+              )}
 
             </div>
 
           </section>
 
 
-          {/* ACCOUNT SUMMARY */}
+          {/* ================= ACCOUNT SUMMARY ================= */}
 
           <section className="summary-section">
 
@@ -463,7 +598,7 @@ function Dashboard() {
               </span>
 
               <strong>
-                Savings
+                {account?.accountType || "Unavailable"}
               </strong>
 
             </div>
@@ -476,7 +611,9 @@ function Dashboard() {
               </span>
 
               <strong>
-                •••• 4582
+                {formatAccountNumber(
+                  account?.accountNumber
+                )}
               </strong>
 
             </div>
@@ -489,7 +626,7 @@ function Dashboard() {
               </span>
 
               <strong className="active-text">
-                Active
+                {accountStatus}
               </strong>
 
             </div>

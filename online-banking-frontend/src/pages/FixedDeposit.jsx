@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./FixedDeposit.css";
 
@@ -11,6 +11,12 @@ function FixedDeposit() {
 
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [created, setCreated] = useState(false);
+  const [createdFd, setCreatedFd] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [sourceAccount, setSourceAccount] = useState(null);
+
+  const [fdHistory, setFdHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   const interestRates = {
     6: 6.25,
@@ -36,30 +42,378 @@ function FixedDeposit() {
   const formattedPrincipal =
     principal.toLocaleString("en-IN");
 
+  // ================= LOAD ACCOUNT + FD HISTORY =================
+
+  useEffect(() => {
+    loadFdHistory();
+    loadSourceAccount();
+  }, []);
+
+  // ================= LOAD SOURCE ACCOUNT =================
+
+  const loadSourceAccount = async () => {
+    try {
+      const storedCustomer =
+        JSON.parse(localStorage.getItem("customer"));
+
+      if (!storedCustomer) {
+        return;
+      }
+
+      const customerId =
+        storedCustomer.customerId ||
+        storedCustomer.id;
+
+      if (!customerId) {
+        return;
+      }
+
+      const response = await fetch(
+        "http://localhost:8080/api/accounts"
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to load bank account."
+        );
+      }
+
+      const accounts = await response.json();
+
+      const account = accounts.find(
+        (item) =>
+          item.customer &&
+          item.customer.id === customerId
+      );
+
+      setSourceAccount(account || null);
+
+    } catch (error) {
+      console.error(
+        "Source account loading error:",
+        error
+      );
+
+      setSourceAccount(null);
+    }
+  };
+
+  // ================= LOAD FD HISTORY =================
+
+  const loadFdHistory = async () => {
+    try {
+      setHistoryLoading(true);
+
+      const storedCustomer =
+        JSON.parse(localStorage.getItem("customer"));
+
+      if (!storedCustomer) {
+        return;
+      }
+
+      const customerId =
+        storedCustomer.customerId ||
+        storedCustomer.id;
+
+      if (!customerId) {
+        return;
+      }
+
+      const accountsResponse = await fetch(
+        "http://localhost:8080/api/accounts"
+      );
+
+      if (!accountsResponse.ok) {
+        throw new Error(
+          "Unable to load accounts."
+        );
+      }
+
+      const accounts =
+        await accountsResponse.json();
+
+      const customerAccountIds =
+        accounts
+          .filter(
+            (item) =>
+              item.customer?.id === customerId
+          )
+          .map((item) => item.id);
+
+      const fdResponse = await fetch(
+        "http://localhost:8080/api/fixed-deposits"
+      );
+
+      if (!fdResponse.ok) {
+        throw new Error(
+          "Unable to load Fixed Deposits."
+        );
+      }
+
+      const allFds =
+        await fdResponse.json();
+
+      const customerFds =
+        allFds.filter(
+          (fd) =>
+            fd.account &&
+            customerAccountIds.includes(
+              fd.account.id
+            )
+        );
+
+      setFdHistory(customerFds);
+
+    } catch (error) {
+
+      console.error(
+        "FD history error:",
+        error
+      );
+
+      setFdHistory([]);
+
+    } finally {
+
+      setHistoryLoading(false);
+
+    }
+  };
+
+  // ================= REVIEW =================
+
   const handleSubmit = (event) => {
+
     event.preventDefault();
 
     if (principal < 1000) {
-      alert("Minimum fixed deposit amount is ₹1,000.");
+
+      alert(
+        "Minimum fixed deposit amount is ₹1,000."
+      );
+
       return;
     }
 
     setShowConfirmation(true);
   };
 
-  const handleConfirm = () => {
-    setShowConfirmation(false);
-    setCreated(true);
+  // ================= CONFIRM FD =================
+
+  const handleConfirm = async () => {
+
+    try {
+
+      setCreating(true);
+
+      const storedCustomer =
+        JSON.parse(
+          localStorage.getItem("customer")
+        );
+
+      if (!storedCustomer) {
+
+        alert("Please login again.");
+
+        return;
+      }
+
+      const customerId =
+        storedCustomer.customerId ||
+        storedCustomer.id;
+
+      if (!customerId) {
+
+        alert(
+          "Customer information not found."
+        );
+
+        return;
+      }
+
+      // Get all accounts
+
+      const accountsResponse =
+        await fetch(
+          "http://localhost:8080/api/accounts"
+        );
+
+      if (!accountsResponse.ok) {
+
+        throw new Error(
+          "Unable to load bank account."
+        );
+      }
+
+      const accounts =
+        await accountsResponse.json();
+
+      // Find logged-in customer's account
+
+      const account =
+        accounts.find(
+          (item) =>
+            item.customer &&
+            item.customer.id === customerId
+        );
+
+      setSourceAccount(account);
+
+      if (!account) {
+
+        throw new Error(
+          "Bank account not found."
+        );
+      }
+
+      if (!account.accountNumber) {
+
+        throw new Error(
+          "Account number not found."
+        );
+      }
+
+      // Send FD request to Spring Boot
+
+      const requestBody = {
+
+        principalAmount: principal,
+
+        interestRate: rate,
+
+        tenureMonths:
+          Number(tenure),
+
+        payoutOption: payout,
+
+        account: {
+          accountNumber:
+            account.accountNumber,
+        },
+      };
+
+      const response =
+        await fetch(
+          "http://localhost:8080/api/fixed-deposits",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(
+                requestBody
+              ),
+          }
+        );
+
+      const responseText =
+        await response.text();
+
+      if (!response.ok) {
+
+        let errorMessage =
+          "Fixed Deposit creation failed.";
+
+        try {
+
+          const parsed =
+            JSON.parse(responseText);
+
+          if (
+            typeof parsed ===
+            "string"
+          ) {
+
+            errorMessage = parsed;
+
+          } else if (
+            parsed?.message
+          ) {
+
+            errorMessage =
+              parsed.message;
+          }
+
+        } catch {
+
+          if (
+            responseText.trim() !== ""
+          ) {
+
+            errorMessage =
+              responseText;
+          }
+        }
+
+        throw new Error(
+          errorMessage
+        );
+      }
+
+      const data =
+        JSON.parse(responseText);
+
+      console.log(
+        "Fixed Deposit created:",
+        data
+      );
+
+      setCreatedFd(data);
+
+      setShowConfirmation(false);
+
+      setCreated(true);
+
+      // Refresh FD history
+
+      await loadFdHistory();
+
+      // Refresh source account balance/details
+
+      await loadSourceAccount();
+
+    } catch (error) {
+
+      console.error(
+        "Fixed Deposit error:",
+        error
+      );
+
+      alert(
+        error.message ||
+        "Failed to create Fixed Deposit."
+      );
+
+    } finally {
+
+      setCreating(false);
+
+    }
   };
 
+  // ================= RESET =================
+
   const handleReset = () => {
+
     setCreated(false);
+
+    setCreatedFd(null);
+
     setAmount("");
+
     setTenure("12");
+
     setPayout("maturity");
+
+    loadSourceAccount();
   };
 
   return (
+
     <div className="fd-page">
 
       {/* ================= HEADER ================= */}
@@ -67,15 +421,22 @@ function FixedDeposit() {
       <header className="fd-header">
 
         <div className="fd-logo">
+
           <span>🏦</span>
+
           OnlineBank
+
         </div>
 
         <button
           className="fd-back"
-          onClick={() => navigate("/dashboard")}
+          onClick={() =>
+            navigate("/dashboard")
+          }
         >
+
           ← Dashboard
+
         </button>
 
       </header>
@@ -88,11 +449,14 @@ function FixedDeposit() {
         {!created ? (
 
           <>
+
             {/* HEADING */}
 
             <div className="fd-heading">
 
-              <p>FIXED DEPOSIT</p>
+              <p>
+                FIXED DEPOSIT
+              </p>
 
               <h1>
                 Open a Fixed Deposit
@@ -125,7 +489,9 @@ function FixedDeposit() {
                 </div>
 
 
-                <form onSubmit={handleSubmit}>
+                <form
+                  onSubmit={handleSubmit}
+                >
 
 
                   {/* SOURCE ACCOUNT */}
@@ -141,17 +507,22 @@ function FixedDeposit() {
                       <div>
 
                         <strong>
-                          Savings Account
+                          {sourceAccount?.accountType
+                            ? `${sourceAccount.accountType} Account`
+                            : "Account type unavailable"}
                         </strong>
 
                         <span>
-                          •••• 4582
+                          {sourceAccount?.accountNumber
+                            ? `•••• ${sourceAccount.accountNumber.slice(-4)}`
+                            : "Account number unavailable"}
                         </span>
 
                       </div>
 
                       <span className="fd-active">
-                        Active
+                        {sourceAccount?.status ||
+                          "Account status unavailable"}
                       </span>
 
                     </div>
@@ -169,7 +540,9 @@ function FixedDeposit() {
 
                     <div className="fd-amount">
 
-                      <span>₹</span>
+                      <span>
+                        ₹
+                      </span>
 
                       <input
                         id="fdAmount"
@@ -177,7 +550,9 @@ function FixedDeposit() {
                         min="1000"
                         value={amount}
                         onChange={(event) =>
-                          setAmount(event.target.value)
+                          setAmount(
+                            event.target.value
+                          )
                         }
                         placeholder="Enter amount"
                         required
@@ -214,9 +589,13 @@ function FixedDeposit() {
                           type="radio"
                           name="tenure"
                           value="6"
-                          checked={tenure === "6"}
+                          checked={
+                            tenure === "6"
+                          }
                           onChange={(event) =>
-                            setTenure(event.target.value)
+                            setTenure(
+                              event.target.value
+                            )
                           }
                         />
 
@@ -243,9 +622,13 @@ function FixedDeposit() {
                           type="radio"
                           name="tenure"
                           value="12"
-                          checked={tenure === "12"}
+                          checked={
+                            tenure === "12"
+                          }
                           onChange={(event) =>
-                            setTenure(event.target.value)
+                            setTenure(
+                              event.target.value
+                            )
                           }
                         />
 
@@ -272,9 +655,13 @@ function FixedDeposit() {
                           type="radio"
                           name="tenure"
                           value="24"
-                          checked={tenure === "24"}
+                          checked={
+                            tenure === "24"
+                          }
                           onChange={(event) =>
-                            setTenure(event.target.value)
+                            setTenure(
+                              event.target.value
+                            )
                           }
                         />
 
@@ -301,9 +688,13 @@ function FixedDeposit() {
                           type="radio"
                           name="tenure"
                           value="36"
-                          checked={tenure === "36"}
+                          checked={
+                            tenure === "36"
+                          }
                           onChange={(event) =>
-                            setTenure(event.target.value)
+                            setTenure(
+                              event.target.value
+                            )
                           }
                         />
 
@@ -333,7 +724,9 @@ function FixedDeposit() {
                     <select
                       value={payout}
                       onChange={(event) =>
-                        setPayout(event.target.value)
+                        setPayout(
+                          event.target.value
+                        )
                       }
                     >
 
@@ -377,9 +770,11 @@ function FixedDeposit() {
                   </p>
 
                   <h2>
+
                     {principal > 0
                       ? `₹ ${formattedMaturity}`
                       : "₹ ••••••"}
+
                   </h2>
 
                   <span>
@@ -394,9 +789,11 @@ function FixedDeposit() {
                     </span>
 
                     <strong>
+
                       {principal > 0
                         ? `₹ ${formattedPrincipal}`
                         : "₹ —"}
+
                     </strong>
 
                   </div>
@@ -435,11 +832,16 @@ function FixedDeposit() {
                     </span>
 
                     <strong>
+
                       {principal > 0
-                        ? `₹ ${interest.toLocaleString("en-IN", {
-                            maximumFractionDigits: 2,
-                          })}`
+                        ? `₹ ${interest.toLocaleString(
+                            "en-IN",
+                            {
+                              maximumFractionDigits: 2,
+                            }
+                          )}`
                         : "₹ —"}
+
                     </strong>
 
                   </div>
@@ -449,7 +851,9 @@ function FixedDeposit() {
 
                 <div className="fd-note">
 
-                  <span>ℹ</span>
+                  <span>
+                    ℹ
+                  </span>
 
                   <div>
 
@@ -458,9 +862,7 @@ function FixedDeposit() {
                     </strong>
 
                     <p>
-                      Your deposit remains locked for the selected
-                      tenure and earns interest according to the
-                      selected rate.
+                      Your deposit remains locked for the selected tenure and earns interest according to the selected rate.
                     </p>
 
                   </div>
@@ -470,6 +872,7 @@ function FixedDeposit() {
               </aside>
 
             </div>
+
           </>
 
         ) : (
@@ -537,8 +940,7 @@ function FixedDeposit() {
                 fontSize: "14px",
               }}
             >
-              Your fixed deposit request has been successfully
-              submitted.
+              Your fixed deposit request has been successfully submitted.
             </p>
 
 
@@ -553,35 +955,103 @@ function FixedDeposit() {
             >
 
               <div className="summary-line">
-                <span>FD Reference</span>
-                <strong>FD20260911001</strong>
+
+                <span>
+                  FD Reference
+                </span>
+
+                <strong>
+                  {createdFd?.fdNumber ||
+                    "Reference unavailable"}
+                </strong>
+
               </div>
 
-              <div className="summary-line">
-                <span>Deposit Amount</span>
-                <strong>₹ {formattedPrincipal}</strong>
-              </div>
 
               <div className="summary-line">
-                <span>Tenure</span>
-                <strong>{tenure} Months</strong>
+
+                <span>
+                  Deposit Amount
+                </span>
+
+                <strong>
+                  {createdFd?.principalAmount !== null &&
+                  createdFd?.principalAmount !== undefined
+                    ? `₹ ${Number(
+                        createdFd.principalAmount
+                      ).toLocaleString(
+                        "en-IN",
+                        {
+                          maximumFractionDigits: 2,
+                        }
+                      )}`
+                    : "₹ —"}
+                </strong>
+
               </div>
 
-              <div className="summary-line">
-                <span>Interest Rate</span>
-                <strong>{rate}%</strong>
-              </div>
 
               <div className="summary-line">
-                <span>Maturity Amount</span>
-                <strong>₹ {formattedMaturity}</strong>
+
+                <span>
+                  Tenure
+                </span>
+
+                <strong>
+                  {createdFd?.tenureMonths !== null &&
+                  createdFd?.tenureMonths !== undefined
+                    ? `${createdFd.tenureMonths} Months`
+                    : "Tenure unavailable"}
+                </strong>
+
+              </div>
+
+
+              <div className="summary-line">
+
+                <span>
+                  Interest Rate
+                </span>
+
+                <strong>
+                  {createdFd?.interestRate !== null &&
+                  createdFd?.interestRate !== undefined
+                    ? `${createdFd.interestRate}%`
+                    : "Rate unavailable"}
+                </strong>
+
+              </div>
+
+
+              <div className="summary-line">
+
+                <span>
+                  Maturity Amount
+                </span>
+
+                <strong>
+                  {createdFd?.maturityAmount !== null &&
+                  createdFd?.maturityAmount !== undefined
+                    ? `₹ ${Number(
+                        createdFd.maturityAmount
+                      ).toLocaleString(
+                        "en-IN",
+                        {
+                          maximumFractionDigits: 2,
+                        }
+                      )}`
+                    : "₹ —"}
+                </strong>
+
               </div>
 
             </div>
 
 
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() =>
+                navigate("/dashboard")
+              }
               style={{
                 width: "100%",
                 height: "45px",
@@ -619,6 +1089,323 @@ function FixedDeposit() {
 
         )}
 
+
+        {/* ================= FD HISTORY ================= */}
+
+        <section
+          style={{
+            maxWidth: "1100px",
+            margin: "35px auto 50px",
+            padding: "25px",
+            background: "#ffffff",
+            border: "1px solid #e3e8ef",
+            borderRadius: "14px",
+          }}
+        >
+
+          <div style={{ marginBottom: "20px" }}>
+
+            <p
+              style={{
+                marginBottom: "6px",
+                color: "#2563eb",
+                fontSize: "11px",
+                fontWeight: "700",
+                letterSpacing: "1.2px",
+              }}
+            >
+              MY FIXED DEPOSITS
+            </p>
+
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "22px",
+              }}
+            >
+              Fixed Deposit History
+            </h2>
+
+            <p
+              style={{
+                marginTop: "7px",
+                color: "#667085",
+                fontSize: "13px",
+              }}
+            >
+              View your active and previous fixed deposits.
+            </p>
+
+          </div>
+
+
+          {historyLoading ? (
+
+            <p
+              style={{
+                color: "#667085",
+                fontSize: "13px",
+              }}
+            >
+              Loading Fixed Deposit history...
+            </p>
+
+          ) : fdHistory.length === 0 ? (
+
+            <div
+              style={{
+                padding: "25px",
+                background: "#f7f9fc",
+                borderRadius: "9px",
+                textAlign: "center",
+                color: "#667085",
+                fontSize: "13px",
+              }}
+            >
+              No Fixed Deposits found.
+            </div>
+
+          ) : (
+
+            <div
+              style={{
+                overflowX: "auto",
+              }}
+            >
+
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "13px",
+                }}
+              >
+
+                <thead>
+
+                  <tr
+                    style={{
+                      borderBottom:
+                        "1px solid #e3e8ef",
+                    }}
+                  >
+
+                    <th
+                      style={{
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      FD Reference
+                    </th>
+
+                    <th
+                      style={{
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      Principal
+                    </th>
+
+                    <th
+                      style={{
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      Rate
+                    </th>
+
+                    <th
+                      style={{
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      Tenure
+                    </th>
+
+                    <th
+                      style={{
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      Maturity Amount
+                    </th>
+
+                    <th
+                      style={{
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      Maturity Date
+                    </th>
+
+                    <th
+                      style={{
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      Status
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                  {fdHistory.map(
+                    (fd) => (
+
+                      <tr
+                        key={fd.id}
+                        style={{
+                          borderBottom:
+                            "1px solid #f0f2f5",
+                        }}
+                      >
+
+                        <td
+                          style={{
+                            padding: "13px",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {fd.fdNumber ||
+                            "Reference unavailable"}
+                        </td>
+
+
+                        <td
+                          style={{
+                            padding: "13px",
+                          }}
+                        >
+                          {fd.principalAmount !== null &&
+                          fd.principalAmount !== undefined
+                            ? `₹ ${Number(
+                                fd.principalAmount
+                              ).toLocaleString(
+                                "en-IN",
+                                {
+                                  maximumFractionDigits: 2,
+                                }
+                              )}`
+                            : "₹ —"}
+                        </td>
+
+
+                        <td
+                          style={{
+                            padding: "13px",
+                          }}
+                        >
+                          {fd.interestRate !== null &&
+                          fd.interestRate !== undefined
+                            ? `${fd.interestRate}%`
+                            : "Rate unavailable"}
+                        </td>
+
+
+                        <td
+                          style={{
+                            padding: "13px",
+                          }}
+                        >
+                          {fd.tenureMonths !== null &&
+                          fd.tenureMonths !== undefined
+                            ? `${fd.tenureMonths} Months`
+                            : "Tenure unavailable"}
+                        </td>
+
+
+                        <td
+                          style={{
+                            padding: "13px",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {fd.maturityAmount !== null &&
+                          fd.maturityAmount !== undefined
+                            ? `₹ ${Number(
+                                fd.maturityAmount
+                              ).toLocaleString(
+                                "en-IN",
+                                {
+                                  maximumFractionDigits: 2,
+                                }
+                              )}`
+                            : "₹ —"}
+                        </td>
+
+
+                        <td
+                          style={{
+                            padding: "13px",
+                          }}
+                        >
+                          {fd.maturityDate ||
+                            "Maturity date unavailable"}
+                        </td>
+
+
+                        <td
+                          style={{
+                            padding: "13px",
+                          }}
+                        >
+
+                          <span
+                            style={{
+                              display:
+                                "inline-block",
+                              padding:
+                                "5px 9px",
+                              borderRadius:
+                                "20px",
+                              background:
+                                fd.status ===
+                                "ACTIVE"
+                                  ? "#eaf8f0"
+                                  : "#f2f4f7",
+                              color:
+                                fd.status ===
+                                "ACTIVE"
+                                  ? "#16834b"
+                                  : "#667085",
+                              fontSize:
+                                "11px",
+                              fontWeight:
+                                "700",
+                            }}
+                          >
+                            {fd.status ||
+                              "Status unavailable"}
+                          </span>
+
+                        </td>
+
+                      </tr>
+
+                    )
+                  )}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          )}
+
+        </section>
+
       </main>
 
 
@@ -634,7 +1421,8 @@ function FixedDeposit() {
             alignItems: "center",
             justifyContent: "center",
             padding: "20px",
-            background: "rgba(15, 23, 42, 0.45)",
+            background:
+              "rgba(15, 23, 42, 0.45)",
             zIndex: 1000,
           }}
         >
@@ -646,7 +1434,8 @@ function FixedDeposit() {
               padding: "30px",
               background: "#ffffff",
               borderRadius: "12px",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
+              boxShadow:
+                "0 20px 50px rgba(0,0,0,0.18)",
             }}
           >
 
@@ -693,34 +1482,73 @@ function FixedDeposit() {
             >
 
               <div className="summary-line">
-                <span>Deposit Amount</span>
-                <strong>₹ {formattedPrincipal}</strong>
-              </div>
 
-              <div className="summary-line">
-                <span>Tenure</span>
-                <strong>{tenure} Months</strong>
-              </div>
+                <span>
+                  Deposit Amount
+                </span>
 
-              <div className="summary-line">
-                <span>Interest Rate</span>
-                <strong>{rate}%</strong>
-              </div>
-
-              <div className="summary-line">
-                <span>Payout</span>
                 <strong>
+                  ₹ {formattedPrincipal}
+                </strong>
+
+              </div>
+
+
+              <div className="summary-line">
+
+                <span>
+                  Tenure
+                </span>
+
+                <strong>
+                  {tenure} Months
+                </strong>
+
+              </div>
+
+
+              <div className="summary-line">
+
+                <span>
+                  Interest Rate
+                </span>
+
+                <strong>
+                  {rate}%
+                </strong>
+
+              </div>
+
+
+              <div className="summary-line">
+
+                <span>
+                  Payout
+                </span>
+
+                <strong>
+
                   {payout === "maturity"
                     ? "At Maturity"
                     : payout === "monthly"
                     ? "Monthly"
                     : "Quarterly"}
+
                 </strong>
+
               </div>
 
+
               <div className="summary-line">
-                <span>Maturity Amount</span>
-                <strong>₹ {formattedMaturity}</strong>
+
+                <span>
+                  Maturity Amount
+                </span>
+
+                <strong>
+                  ₹ {formattedMaturity}
+                </strong>
+
               </div>
 
             </div>
@@ -738,14 +1566,18 @@ function FixedDeposit() {
                 onClick={() =>
                   setShowConfirmation(false)
                 }
+                disabled={creating}
                 style={{
                   flex: 1,
                   height: "44px",
-                  border: "1px solid #d9dee7",
+                  border:
+                    "1px solid #d9dee7",
                   borderRadius: "7px",
                   background: "#ffffff",
                   color: "#475467",
-                  cursor: "pointer",
+                  cursor: creating
+                    ? "not-allowed"
+                    : "pointer",
                 }}
               >
                 Cancel
@@ -754,6 +1586,7 @@ function FixedDeposit() {
 
               <button
                 onClick={handleConfirm}
+                disabled={creating}
                 style={{
                   flex: 1,
                   height: "44px",
@@ -762,10 +1595,16 @@ function FixedDeposit() {
                   background: "#2563eb",
                   color: "#ffffff",
                   fontWeight: "600",
-                  cursor: "pointer",
+                  cursor: creating
+                    ? "not-allowed"
+                    : "pointer",
                 }}
               >
-                Confirm Deposit
+
+                {creating
+                  ? "Creating..."
+                  : "Confirm Deposit"}
+
               </button>
 
             </div>

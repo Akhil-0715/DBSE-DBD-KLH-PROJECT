@@ -168,8 +168,8 @@ function Home() {
             </h3>
 
             <p>
-              View transaction history and generate
-              account statements.
+              View transaction history and track
+  account activity.
             </p>
 
           </div>

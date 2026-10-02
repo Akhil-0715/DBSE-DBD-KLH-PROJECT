@@ -7,14 +7,65 @@ function AdminLogin() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault();
 
-    if (email === "admin@onlinebank.com" && password === "admin123") {
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://localhost:8080/api/admin/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password: password,
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setError(
+          typeof data === "string"
+            ? data
+            : data?.message ||
+                "Invalid admin email or password."
+        );
+        return;
+      }
+
+      if (!data) {
+        setError(
+          "Invalid response received from the server."
+        );
+        return;
+      }
+
+      localStorage.setItem(
+        "admin",
+        JSON.stringify(data)
+      );
+
       navigate("/admin-dashboard");
-    } else {
-      alert("Invalid admin email or password.");
+
+    } catch (error) {
+      console.error("Admin login error:", error);
+
+      setError(
+        "Unable to connect to the server. Please make sure the backend is running."
+      );
+
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -80,11 +131,28 @@ function AdminLogin() {
           </div>
 
 
+          {error && (
+            <p
+              style={{
+                color: "#d92d20",
+                marginTop: "10px",
+                marginBottom: "10px",
+                fontSize: "13px",
+              }}
+            >
+              {error}
+            </p>
+          )}
+
+
           <button
             type="submit"
             className="admin-login-button"
+            disabled={loading}
           >
-            Login as Admin
+            {loading
+              ? "Logging in..."
+              : "Login as Admin"}
           </button>
 
         </form>

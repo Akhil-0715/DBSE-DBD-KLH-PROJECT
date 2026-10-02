@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Transfer.css";
 
@@ -9,6 +9,13 @@ function Transfer() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [transferSuccess, setTransferSuccess] = useState(false);
 
+  const [customer, setCustomer] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [transaction, setTransaction] = useState(null);
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     accountNumber: "",
     confirmAccountNumber: "",
@@ -18,6 +25,52 @@ function Transfer() {
     purpose: "",
   });
 
+  // ================= LOAD CUSTOMER =================
+
+  useEffect(() => {
+    const storedCustomer = localStorage.getItem("customer");
+
+    if (!storedCustomer) {
+      navigate("/login");
+      return;
+    }
+
+    const customerData = JSON.parse(storedCustomer);
+
+    setCustomer(customerData);
+
+    loadAccount(customerData.customerId);
+  }, [navigate]);
+
+  // ================= LOAD ACCOUNT =================
+
+  const loadAccount = async (customerId) => {
+    try {
+      const response = await fetch(
+        "http://localhost:8080/api/accounts"
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load account");
+      }
+
+      const accounts = await response.json();
+
+      const customerAccount = accounts.find(
+        (item) => item.customer?.id === customerId
+      );
+
+      if (customerAccount) {
+        setAccount(customerAccount);
+      }
+    } catch (error) {
+      console.error("Account loading error:", error);
+      setError("Unable to load your account details.");
+    }
+  };
+
+  // ================= FORM CHANGE =================
+
   const handleChange = (event) => {
     const { name, value } = event.target;
 
@@ -25,10 +78,21 @@ function Transfer() {
       ...formData,
       [name]: value,
     });
+
+    setError("");
   };
+
+  // ================= REVIEW TRANSFER =================
 
   const handleSubmit = (event) => {
     event.preventDefault();
+
+    setError("");
+
+    if (!account) {
+      setError("Your account details could not be loaded.");
+      return;
+    }
 
     if (
       formData.accountNumber !==
@@ -38,21 +102,129 @@ function Transfer() {
       return;
     }
 
+    if (formData.accountNumber === account.accountNumber) {
+      alert("You cannot transfer money to your own account.");
+      return;
+    }
+
     if (Number(formData.amount) <= 0) {
       alert("Please enter a valid amount.");
+      return;
+    }
+
+    if (Number(formData.amount) > Number(account.balance)) {
+      alert("Insufficient balance.");
       return;
     }
 
     setShowConfirmation(true);
   };
 
-  const handleConfirmTransfer = () => {
-    setShowConfirmation(false);
-    setTransferSuccess(true);
+  // ================= CONFIRM TRANSFER =================
+
+  const handleConfirmTransfer = async () => {
+    if (!account) {
+      setError("Your account details could not be loaded.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const params = new URLSearchParams();
+
+      params.append(
+        "senderAccountNumber",
+        account.accountNumber
+      );
+
+      params.append(
+        "receiverAccountNumber",
+        formData.accountNumber
+      );
+
+      params.append(
+        "amount",
+        formData.amount
+      );
+
+      params.append(
+        "transferMode",
+        formData.transferType
+      );
+
+      const response = await fetch(
+        `http://localhost:8080/api/transactions/transfer?${params.toString()}`,
+        {
+          method: "POST",
+        }
+      );
+
+      // ================= HANDLE RESPONSE =================
+
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        let errorMessage = "Transfer failed. Please try again.";
+
+        try {
+          const parsedData = JSON.parse(responseText);
+
+          if (typeof parsedData === "string") {
+            errorMessage = parsedData;
+          } else if (parsedData?.message) {
+            errorMessage = parsedData.message;
+          }
+        } catch {
+          if (responseText && responseText.trim() !== "") {
+            errorMessage = responseText;
+          }
+        }
+
+        setError(errorMessage);
+        setShowConfirmation(false);
+
+        return;
+      }
+
+      // ================= SUCCESS RESPONSE =================
+
+      let data;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        data = null;
+      }
+
+      setTransaction(data);
+      setShowConfirmation(false);
+      setTransferSuccess(true);
+
+      // Refresh account balance
+      await loadAccount(customer.customerId);
+
+    } catch (error) {
+      console.error("Transfer error:", error);
+
+      setError(
+        "Unable to connect to the banking server."
+      );
+
+      setShowConfirmation(false);
+
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // ================= NEW TRANSFER =================
 
   const handleNewTransfer = () => {
     setTransferSuccess(false);
+    setTransaction(null);
+    setError("");
 
     setFormData({
       accountNumber: "",
@@ -64,12 +236,19 @@ function Transfer() {
     });
   };
 
-  const formattedAmount = Number(formData.amount || 0).toLocaleString(
-    "en-IN",
-    {
-      maximumFractionDigits: 2,
-    }
-  );
+  // ================= FORMAT AMOUNT =================
+
+  const formattedAmount = Number(
+    formData.amount || 0
+  ).toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  });
+
+  // ================= CUSTOMER LOADING =================
+
+  if (!customer) {
+    return null;
+  }
 
   return (
     <div className="transfer-page">
@@ -92,7 +271,6 @@ function Transfer() {
 
       </header>
 
-
       <main className="transfer-main">
 
         {!transferSuccess ? (
@@ -114,9 +292,26 @@ function Transfer() {
 
             </div>
 
+            {/* ================= ERROR ================= */}
+
+            {error && (
+              <div
+                style={{
+                  maxWidth: "900px",
+                  margin: "0 auto 20px",
+                  padding: "12px 16px",
+                  background: "#fff1f1",
+                  border: "1px solid #f3b5b5",
+                  borderRadius: "8px",
+                  color: "#c62828",
+                  fontSize: "13px",
+                }}
+              >
+                {error}
+              </div>
+            )}
 
             <div className="transfer-layout">
-
 
               {/* ================= TRANSFER FORM ================= */}
 
@@ -134,9 +329,7 @@ function Transfer() {
 
                 </div>
 
-
                 <form onSubmit={handleSubmit}>
-
 
                   {/* FROM ACCOUNT */}
 
@@ -151,11 +344,13 @@ function Transfer() {
                       <div>
 
                         <strong>
-                          Savings Account
+                          {account?.accountType
+                            ? `${account.accountType} Account`
+                            : "Account type unavailable"}
                         </strong>
 
                         <span>
-                          •••• 4582
+                          •••• {account?.accountNumber?.slice(-4)}
                         </span>
 
                       </div>
@@ -168,7 +363,10 @@ function Transfer() {
 
                         <strong>
                           {showBalance
-                            ? "₹50,000"
+                            ? account?.balance !== null &&
+                              account?.balance !== undefined
+                              ? `₹${Number(account.balance).toLocaleString("en-IN")}`
+                              : "₹ —"
                             : "₹ ••••••"}
                         </strong>
 
@@ -186,7 +384,6 @@ function Transfer() {
                     </div>
 
                   </div>
-
 
                   {/* ACCOUNT NUMBER */}
 
@@ -209,7 +406,6 @@ function Transfer() {
 
                   </div>
 
-
                   {/* CONFIRM ACCOUNT */}
 
                   <div className="form-group">
@@ -231,7 +427,6 @@ function Transfer() {
 
                   </div>
 
-
                   {/* IFSC */}
 
                   <div className="form-group">
@@ -251,7 +446,6 @@ function Transfer() {
                     />
 
                   </div>
-
 
                   {/* AMOUNT */}
 
@@ -279,7 +473,6 @@ function Transfer() {
                     </div>
 
                   </div>
-
 
                   {/* TRANSFER METHOD */}
 
@@ -323,7 +516,6 @@ function Transfer() {
 
                       </label>
 
-
                       <label
                         className={
                           formData.transferType === "NEFT"
@@ -359,7 +551,6 @@ function Transfer() {
                     </div>
 
                   </div>
-
 
                   {/* PURPOSE */}
 
@@ -405,7 +596,6 @@ function Transfer() {
 
                   </div>
 
-
                   {/* REVIEW BUTTON */}
 
                   <button
@@ -418,7 +608,6 @@ function Transfer() {
                 </form>
 
               </section>
-
 
               {/* ================= SIDE INFORMATION ================= */}
 
@@ -455,7 +644,6 @@ function Transfer() {
                   </ul>
 
                 </div>
-
 
                 <div className="security-note">
 
@@ -518,7 +706,6 @@ function Transfer() {
               ✓
             </div>
 
-
             <p
               style={{
                 marginBottom: "8px",
@@ -531,7 +718,6 @@ function Transfer() {
               FUND TRANSFER
             </p>
 
-
             <h1
               style={{
                 marginBottom: "10px",
@@ -540,7 +726,6 @@ function Transfer() {
             >
               Transfer Successful
             </h1>
-
 
             <p
               style={{
@@ -551,7 +736,6 @@ function Transfer() {
             >
               Your fund transfer has been successfully submitted.
             </p>
-
 
             <div
               style={{
@@ -569,10 +753,9 @@ function Transfer() {
                 </span>
 
                 <strong>
-                  TXN20260911001
+                  {transaction?.transactionReference || "N/A"}
                 </strong>
               </div>
-
 
               <div className="summary-line">
                 <span>
@@ -584,7 +767,6 @@ function Transfer() {
                 </strong>
               </div>
 
-
               <div className="summary-line">
                 <span>
                   Amount
@@ -594,7 +776,6 @@ function Transfer() {
                   ₹ {formattedAmount}
                 </strong>
               </div>
-
 
               <div className="summary-line">
                 <span>
@@ -606,7 +787,6 @@ function Transfer() {
                 </strong>
               </div>
 
-
               <div className="summary-line">
                 <span>
                   Purpose
@@ -616,7 +796,6 @@ function Transfer() {
                   {formData.purpose}
                 </strong>
               </div>
-
 
               <div className="summary-line">
                 <span>
@@ -628,12 +807,11 @@ function Transfer() {
                     color: "#16834b",
                   }}
                 >
-                  Successful
+                  {transaction?.status || "Status unavailable"}
                 </strong>
               </div>
 
             </div>
-
 
             <button
               onClick={() => navigate("/dashboard")}
@@ -652,7 +830,6 @@ function Transfer() {
             >
               Back to Dashboard
             </button>
-
 
             <button
               onClick={handleNewTransfer}
@@ -675,7 +852,6 @@ function Transfer() {
         )}
 
       </main>
-
 
       {/* ================= CONFIRMATION MODAL ================= */}
 
@@ -717,7 +893,6 @@ function Transfer() {
               CONFIRM TRANSFER
             </p>
 
-
             <h2
               style={{
                 marginBottom: "8px",
@@ -726,7 +901,6 @@ function Transfer() {
             >
               Review your transfer
             </h2>
-
 
             <p
               style={{
@@ -737,7 +911,6 @@ function Transfer() {
             >
               Please verify the details before confirming.
             </p>
-
 
             <div
               style={{
@@ -759,7 +932,6 @@ function Transfer() {
 
               </div>
 
-
               <div className="summary-line">
 
                 <span>
@@ -771,7 +943,6 @@ function Transfer() {
                 </strong>
 
               </div>
-
 
               <div className="summary-line">
 
@@ -785,7 +956,6 @@ function Transfer() {
 
               </div>
 
-
               <div className="summary-line">
 
                 <span>
@@ -797,7 +967,6 @@ function Transfer() {
                 </strong>
 
               </div>
-
 
               <div className="summary-line">
 
@@ -813,7 +982,6 @@ function Transfer() {
 
             </div>
 
-
             <div
               style={{
                 display: "flex",
@@ -826,6 +994,7 @@ function Transfer() {
                 onClick={() =>
                   setShowConfirmation(false)
                 }
+                disabled={loading}
                 style={{
                   flex: 1,
                   height: "44px",
@@ -839,9 +1008,9 @@ function Transfer() {
                 Cancel
               </button>
 
-
               <button
                 onClick={handleConfirmTransfer}
+                disabled={loading}
                 style={{
                   flex: 1,
                   height: "44px",
@@ -853,7 +1022,9 @@ function Transfer() {
                   cursor: "pointer",
                 }}
               >
-                Confirm Transfer
+                {loading
+                  ? "Processing..."
+                  : "Confirm Transfer"}
               </button>
 
             </div>

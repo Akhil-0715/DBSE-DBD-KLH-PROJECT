@@ -11,6 +11,7 @@ target/
 .env
 .env.*
 application-local.properties
+application.properties
 
 .DS_Store
 Thumbs.db
